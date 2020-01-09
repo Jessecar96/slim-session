@@ -37,28 +37,31 @@ class Session
     public function __construct($settings = [])
     {
         $defaults = [
-            'lifetime'     => '20 minutes',
-            'path'         => '/',
-            'domain'       => null,
-            'secure'       => false,
-            'httponly'     => false,
             'name'         => 'slim_session',
             'autorefresh'  => false,
             'handler'      => null,
             'ini_settings' => [],
+            'cookie_params' => [
+                'lifetime'     => '20 minutes',
+                'path'         => '/',
+                'domain'       => null,
+                'secure'       => false,
+                'httponly'     => false,
+                'samesite'     => null,
+            ]
         ];
         $settings = array_merge($defaults, $settings);
 
-        if (is_string($lifetime = $settings['lifetime'])) {
-            $settings['lifetime'] = strtotime($lifetime) - time();
+        if (is_string($lifetime = $settings['cookie_params']['lifetime'])) {
+            $settings['cookie_params']['lifetime'] = strtotime($lifetime) - time();
         }
         $this->settings = $settings;
 
         $this->iniSet($settings['ini_settings']);
         // Just override this, to ensure package is working
-        if (ini_get('session.gc_maxlifetime') < $settings['lifetime']) {
+        if (ini_get('session.gc_maxlifetime') < $settings['cookie_params']['lifetime']) {
             $this->iniSet([
-                'session.gc_maxlifetime' => $settings['lifetime'] * 2,
+                'session.gc_maxlifetime' => $settings['cookie_params']['lifetime'] * 2,
             ]);
         }
     }
@@ -89,25 +92,16 @@ class Session
         $settings = $this->settings;
         $name = $settings['name'];
 
-        session_set_cookie_params(
-            $settings['lifetime'],
-            $settings['path'],
-            $settings['domain'],
-            $settings['secure'],
-            $settings['httponly']
-        );
+        session_set_cookie_params($settings['cookie_params']);
 
         // Refresh session cookie when "inactive",
         // else PHP won't know we want this to refresh
         if ($settings['autorefresh'] && isset($_COOKIE[$name])) {
+            $settings['cookie_params']['lifetime'] = time() + $settings['cookie_params']['lifetime'];
             setcookie(
                 $name,
                 $_COOKIE[$name],
-                time() + $settings['lifetime'],
-                $settings['path'],
-                $settings['domain'],
-                $settings['secure'],
-                $settings['httponly']
+                $settings['cookie_params']
             );
         }
 
